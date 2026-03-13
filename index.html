@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Training Hub Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Serif+Display&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-one"></div>
+    <div class="bg-orb bg-orb-two"></div>
+
+    <header class="site-header shell">
+      <div>
+        <p class="eyebrow">Onboarding Platform</p>
+        <h1>Training Hub</h1>
+      </div>
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">Theme</button>
+    </header>
+
+    <main class="shell">
+      <section class="panel tabs-panel">
+        <div class="tabs" role="tablist" aria-label="Portal views">
+          <button class="tab-btn active" id="adminTabBtn" data-tab="admin" role="tab" aria-selected="true">Admin Portal</button>
+          <button class="tab-btn" id="joineeTabBtn" data-tab="joinee" role="tab" aria-selected="false">Joinee Portal</button>
+        </div>
+      </section>
+
+      <section id="adminTab" class="tab-view active" role="tabpanel" aria-labelledby="adminTabBtn">
+        <div class="grid cols-2">
+          <article class="panel">
+            <h2>Add New Joinee</h2>
+            <form id="joineeForm" class="stack-form">
+              <label>
+                Full Name
+                <input id="joineeName" type="text" placeholder="Aarav Kumar" required />
+              </label>
+              <label>
+                Email
+                <input id="joineeEmail" type="email" placeholder="aarav@company.com" required />
+              </label>
+              <button class="btn btn-primary" type="submit">Add Joinee</button>
+            </form>
+          </article>
+
+          <article class="panel">
+            <h2>Upload Training Video</h2>
+            <form id="videoForm" class="stack-form">
+              <label>
+                Video Title
+                <input id="videoTitle" type="text" placeholder="Security Basics" required />
+              </label>
+              <label>
+                Description
+                <textarea id="videoDescription" rows="3" placeholder="What this module covers"></textarea>
+              </label>
+              <label>
+                Video File
+                <input id="videoFile" type="file" accept="video/*" required />
+              </label>
+              <button class="btn btn-primary" type="submit">Upload Video</button>
+              <p class="hint">Videos are stored in your browser (IndexedDB). Keep file sizes moderate.</p>
+            </form>
+          </article>
+        </div>
+
+        <div class="grid cols-2 top-gap">
+          <article class="panel">
+            <h2>Joinees</h2>
+            <ul id="joineeList" class="simple-list"></ul>
+          </article>
+
+          <article class="panel">
+            <h2>Training Library</h2>
+            <ul id="videoList" class="simple-list"></ul>
+          </article>
+        </div>
+
+        <article class="panel top-gap">
+          <h2>Progress Dashboard</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Joinee</th>
+                  <th>Email</th>
+                  <th>Completed</th>
+                  <th>Overall Progress</th>
+                  <th>Total Watches</th>
+                </tr>
+              </thead>
+              <tbody id="progressTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="joineeTab" class="tab-view" role="tabpanel" aria-labelledby="joineeTabBtn">
+        <article class="panel">
+          <h2>Watch Training</h2>
+          <div class="grid cols-2">
+            <div>
+              <label>
+                Select Joinee
+                <select id="activeJoineeSelect"></select>
+              </label>
+
+              <label>
+                Select Module
+                <select id="activeVideoSelect"></select>
+              </label>
+
+              <label>
+                Search Modules
+                <input id="videoSearchInput" type="text" placeholder="Type module title" />
+              </label>
+
+              <ul id="moduleQuickList" class="simple-list quick-list"></ul>
+
+              <div id="videoMeta" class="video-meta">No module selected yet.</div>
+              <p id="videoStatus" class="status-text">Progress will appear here once playback starts.</p>
+            </div>
+
+            <div class="player-box">
+              <video id="trainingPlayer" controls preload="metadata"></video>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
