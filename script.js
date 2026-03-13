@@ -25,6 +25,7 @@ const state = {
   isAdminUnlocked: localStorage.getItem(STORAGE_KEYS.adminSession) === "1",
   activeTraineeId: localStorage.getItem(STORAGE_KEYS.traineeSessionUserId) || "",
   analyticsUserId: "",
+  analyticsSearchQuery: "",
 };
 
 const els = {
@@ -79,10 +80,13 @@ const els = {
   joineeList: document.getElementById("joineeList"),
   videoList: document.getElementById("videoList"),
   progressTableBody: document.getElementById("progressTableBody"),
-
-  analyticsJoineeSelect: document.getElementById("analyticsJoineeSelect"),
   analyticsSummary: document.getElementById("analyticsSummary"),
-  analyticsTableBody: document.getElementById("analyticsTableBody"),
+  analyticsSearchInput: document.getElementById("analyticsSearchInput"),
+  analyticsCards: document.getElementById("analyticsCards"),
+  analyticsModal: document.getElementById("analyticsModal"),
+  analyticsModalTitle: document.getElementById("analyticsModalTitle"),
+  analyticsModalBody: document.getElementById("analyticsModalBody"),
+  analyticsModalClose: document.getElementById("analyticsModalClose"),
 };
 
 const dbPromise = openDatabase();
@@ -372,9 +376,21 @@ function wireAdmin() {
     renderAll();
   });
 
-  els.analyticsJoineeSelect.addEventListener("change", () => {
-    state.analyticsUserId = els.analyticsJoineeSelect.value;
+  els.analyticsSearchInput.addEventListener("input", () => {
+    state.analyticsSearchQuery = els.analyticsSearchInput.value.trim().toLowerCase();
     renderAnalyticsPanel();
+  });
+
+  els.analyticsModalClose.addEventListener("click", closeAnalyticsModal);
+  els.analyticsModal.addEventListener("click", (event) => {
+    if (event.target.dataset.closeModal === "true") {
+      closeAnalyticsModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.analyticsModal.classList.contains("hidden")) {
+      closeAnalyticsModal();
+    }
   });
 }
 
@@ -620,7 +636,6 @@ function renderAdminData() {
   renderJoineeList();
   renderVideoLibrary();
   renderProgressTable();
-  renderAnalyticsJoineeSelect();
   renderAnalyticsPanel();
 }
 
@@ -774,101 +789,157 @@ function renderProgressTable() {
     .join("");
 }
 
-function renderAnalyticsJoineeSelect() {
+function renderAnalyticsPanel() {
   if (state.users.length === 0) {
-    els.analyticsJoineeSelect.innerHTML = '<option value="">No employees</option>';
-    state.analyticsUserId = "";
+    els.analyticsSummary.innerHTML = "";
+    els.analyticsCards.innerHTML = '<div class="analytics-empty">No analytics available yet. Add an employee first.</div>';
     return;
   }
 
-  if (!state.analyticsUserId || !state.users.some((user) => user.id === state.analyticsUserId)) {
-    state.analyticsUserId = state.users[0].id;
+  const analytics = state.users.map(getEmployeeAnalyticsData);
+  const totalEmployees = analytics.length;
+  const totalCompletions = analytics.reduce((sum, item) => sum + item.completed, 0);
+  const totalVideos = state.videos.length;
+  const averageCompletion = totalEmployees > 0 ? Math.round(analytics.reduce((sum, item) => sum + item.rate, 0) / totalEmployees) : 0;
+
+  els.analyticsSummary.innerHTML = `
+    <article class="analytics-stat blue">
+      <p class="metric-label">Total Employees</p>
+      <p class="metric-value">${totalEmployees}</p>
+    </article>
+    <article class="analytics-stat cyan">
+      <p class="metric-label">Total Completions</p>
+      <p class="metric-value">${totalCompletions}</p>
+    </article>
+    <article class="analytics-stat orange">
+      <p class="metric-label">Average Completion</p>
+      <p class="metric-value">${averageCompletion}%</p>
+    </article>
+    <article class="analytics-stat green">
+      <p class="metric-label">Total Videos</p>
+      <p class="metric-value">${totalVideos}</p>
+    </article>
+  `;
+
+  const filtered = analytics.filter((item) => {
+    if (!state.analyticsSearchQuery) {
+      return true;
+    }
+
+    const haystack = `${item.user.name} ${item.user.email}`.toLowerCase();
+    return haystack.includes(state.analyticsSearchQuery);
+  });
+
+  if (filtered.length === 0) {
+    els.analyticsCards.innerHTML = '<div class="analytics-empty">No employees match that search.</div>';
+    return;
   }
 
-  els.analyticsJoineeSelect.innerHTML = state.users
-    .map((user) => `<option value="${user.id}">${escapeHtml(user.name)} (${escapeHtml(user.email)})</option>`)
+  els.analyticsCards.innerHTML = filtered
+    .map((item) => {
+      const latestCompletion = item.completions[0];
+      return `
+        <article class="analytics-employee-card">
+          <div class="analytics-employee-head">
+            <div>
+              <h3 class="analytics-employee-name">${escapeHtml(item.user.name)}</h3>
+              <p class="analytics-employee-email">${escapeHtml(item.user.email)}</p>
+            </div>
+            <div class="analytics-percent">${item.rate}%</div>
+          </div>
+
+          <div class="analytics-progress" aria-hidden="true">
+            <div class="analytics-progress-bar" style="width: ${item.rate}%"></div>
+          </div>
+
+          <p class="analytics-copy">${item.completed} of ${item.totalModules} videos completed</p>
+
+          <div class="analytics-recent">
+            <h3>Recent Completions</h3>
+            ${
+              latestCompletion
+                ? renderCompletionItem(latestCompletion)
+                : '<p class="analytics-copy">No completed modules yet.</p>'
+            }
+          </div>
+
+          <button class="analytics-details-btn" data-analytics-user="${item.user.id}" type="button">View Full Details</button>
+        </article>
+      `;
+    })
     .join("");
 
-  els.analyticsJoineeSelect.value = state.analyticsUserId;
+  els.analyticsCards.querySelectorAll("[data-analytics-user]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openAnalyticsModal(button.dataset.analyticsUser);
+    });
+  });
 }
 
-function renderAnalyticsPanel() {
-  if (!state.analyticsUserId || state.users.length === 0) {
-    els.analyticsSummary.innerHTML = "";
-    els.analyticsTableBody.innerHTML = "<tr><td colspan='5'>No analytics available.</td></tr>";
-    return;
-  }
+function getEmployeeAnalyticsData(user) {
+  const totalModules = state.videos.length;
+  const completions = state.videos
+    .map((video) => {
+      const entry = state.progress[progressKey(user.id, video.id)] || createEmptyProgressEntry();
+      return {
+        video,
+        entry,
+      };
+    })
+    .filter((item) => item.entry.manualCompleted)
+    .sort((a, b) => new Date(b.entry.completedAt || 0) - new Date(a.entry.completedAt || 0));
 
-  const user = state.users.find((item) => item.id === state.analyticsUserId);
+  const completed = completions.length;
+  const rate = totalModules > 0 ? Math.round((completed / totalModules) * 100) : 0;
+
+  return {
+    user,
+    totalModules,
+    completed,
+    rate,
+    completions,
+  };
+}
+
+function renderCompletionItem(item) {
+  const title = item.video.fileName || item.video.title;
+  return `
+    <div class="completion-item">
+      <span class="completion-dot">✓</span>
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        <div class="completion-meta">${escapeHtml(item.video.title || "")}</div>
+        <div class="completion-meta">${item.entry.completedAt ? `Completed: ${new Date(item.entry.completedAt).toLocaleString()}` : ""}</div>
+      </div>
+    </div>
+  `;
+}
+
+function openAnalyticsModal(userId) {
+  const user = state.users.find((item) => item.id === userId);
   if (!user) {
     return;
   }
 
-  const totalModules = state.videos.length;
-  let completed = 0;
-  let totalViews = 0;
-  let totalWatchedSeconds = 0;
-  let latestActivity = null;
+  const analytics = getEmployeeAnalyticsData(user);
+  els.analyticsModalTitle.textContent = `${user.name} - Completion History`;
+  els.analyticsModalBody.innerHTML = analytics.completions.length
+    ? analytics.completions
+        .map(
+          (item) => `
+            <article class="modal-completion-card">
+              ${renderCompletionItem(item)}
+            </article>
+          `
+        )
+        .join("")
+    : '<div class="analytics-empty">No completion history yet for this employee.</div>';
 
-  const rows = state.videos.map((video) => {
-    const entry = state.progress[progressKey(user.id, video.id)] || createEmptyProgressEntry();
+  els.analyticsModal.classList.remove("hidden");
+}
 
-    if (entry.manualCompleted) {
-      completed += 1;
-    }
-
-    totalViews += entry.viewCount || 0;
-    totalWatchedSeconds += entry.watchedSeconds || 0;
-
-    if (entry.lastWatchedAt && (!latestActivity || entry.lastWatchedAt > latestActivity)) {
-      latestActivity = entry.lastWatchedAt;
-    }
-
-    const progressPct = entry.duration > 0 ? Math.min(100, Math.round((entry.watchedSeconds / entry.duration) * 100)) : 0;
-
-    return `
-      <tr>
-        <td>${escapeHtml(video.title)}</td>
-        <td>${progressPct}%</td>
-        <td>${entry.manualCompleted ? "Yes" : "No"}</td>
-        <td>${entry.viewCount || 0}</td>
-        <td>${entry.lastWatchedAt ? new Date(entry.lastWatchedAt).toLocaleString() : "-"}</td>
-      </tr>
-    `;
-  });
-
-  const completionRate = totalModules > 0 ? Math.round((completed / totalModules) * 100) : 0;
-  const watchedMinutes = Math.round(totalWatchedSeconds / 60);
-
-  els.analyticsSummary.innerHTML = `
-    <article class="metric-card">
-      <p class="metric-label">Employee</p>
-      <p class="metric-value">${escapeHtml(user.name)}</p>
-    </article>
-    <article class="metric-card">
-      <p class="metric-label">Completion</p>
-      <p class="metric-value">${completed}/${totalModules} (${completionRate}%)</p>
-    </article>
-    <article class="metric-card">
-      <p class="metric-label">Total Watches</p>
-      <p class="metric-value">${totalViews}</p>
-    </article>
-    <article class="metric-card">
-      <p class="metric-label">Watch Time</p>
-      <p class="metric-value">${watchedMinutes} mins</p>
-    </article>
-  `;
-
-  els.analyticsTableBody.innerHTML = rows.length > 0 ? rows.join("") : "<tr><td colspan='5'>No modules uploaded yet.</td></tr>";
-
-  if (latestActivity) {
-    els.analyticsSummary.innerHTML += `
-      <article class="metric-card">
-        <p class="metric-label">Last Activity</p>
-        <p class="metric-value">${new Date(latestActivity).toLocaleString()}</p>
-      </article>
-    `;
-  }
+function closeAnalyticsModal() {
+  els.analyticsModal.classList.add("hidden");
 }
 
 function getActiveTrainee() {
@@ -880,7 +951,8 @@ function currentVideoId() {
 }
 
 function isEligibleForManualCompletion(entry) {
-  const duration = entry.duration || 0;
+  const playerDuration = Number.isFinite(els.trainingPlayer.duration) ? els.trainingPlayer.duration : 0;
+  const duration = Math.max(entry.duration || 0, playerDuration);
   if (duration <= 0) {
     return false;
   }
