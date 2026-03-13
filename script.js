@@ -137,6 +137,7 @@ function wireHeaderAndViews() {
     state.isAdminUnlocked = false;
     localStorage.removeItem(STORAGE_KEYS.adminSession);
     updateAdminVisibility();
+    updateNavigationVisibility();
     switchView("training");
   });
 
@@ -148,11 +149,13 @@ function wireHeaderAndViews() {
     renderTraineeVisibility();
     renderVideoCards();
     renderPlayerStatus();
+    updateNavigationVisibility();
     switchView("training");
   });
 
   updateAdminVisibility();
   renderTraineeVisibility();
+  updateNavigationVisibility();
   switchView("training");
 }
 
@@ -174,6 +177,8 @@ function wireTraineeAuth() {
       return;
     }
 
+    state.isAdminUnlocked = false;
+    localStorage.removeItem(STORAGE_KEYS.adminSession);
     state.activeTraineeId = matchedUser.id;
     localStorage.setItem(STORAGE_KEYS.traineeSessionUserId, matchedUser.id);
     els.passwordChangeMessage.textContent = "";
@@ -183,6 +188,8 @@ function wireTraineeAuth() {
     els.traineeLoginForm.reset();
 
     renderTraineeVisibility();
+    updateAdminVisibility();
+    updateNavigationVisibility();
     renderVideoCards();
 
     if (!currentVideoId() && state.videos.length > 0) {
@@ -190,6 +197,8 @@ function wireTraineeAuth() {
     } else {
       refreshPlayerPanel();
     }
+
+    switchView("training");
   });
 }
 
@@ -228,6 +237,10 @@ function wirePasswordChange() {
 }
 
 function switchView(viewName) {
+  if (viewName === "admin" && !state.isAdminUnlocked) {
+    viewName = "training";
+  }
+
   state.activeView = viewName;
   const training = viewName === "training";
 
@@ -245,6 +258,13 @@ function updateAdminVisibility() {
   els.adminGate.classList.toggle("hidden", state.isAdminUnlocked);
   els.adminContent.classList.toggle("hidden", !state.isAdminUnlocked);
   els.adminLogoutBtn.classList.toggle("hidden", !state.isAdminUnlocked);
+}
+
+function updateNavigationVisibility() {
+  const traineeLoggedIn = Boolean(getActiveTrainee());
+
+  els.adminTabBtn.classList.toggle("hidden", traineeLoggedIn || !state.isAdminUnlocked);
+  els.trainingTabBtn.classList.toggle("hidden", state.isAdminUnlocked && !traineeLoggedIn);
 }
 
 function renderTraineeVisibility() {
@@ -312,11 +332,17 @@ function wireAdmin() {
 
     state.isAdminUnlocked = true;
     localStorage.setItem(STORAGE_KEYS.adminSession, "1");
+    state.activeTraineeId = "";
+    localStorage.removeItem(STORAGE_KEYS.traineeSessionUserId);
     els.adminGateMessage.textContent = "";
     els.adminLoginForm.reset();
+    els.passwordChangeMessage.textContent = "";
 
     updateAdminVisibility();
+    renderTraineeVisibility();
+    updateNavigationVisibility();
     renderAdminData();
+    switchView("admin");
   });
 
   els.joineeForm.addEventListener("submit", (event) => {
@@ -695,6 +721,7 @@ function renderJoineeList() {
       }
 
       saveUsers(state.users);
+      updateNavigationVisibility();
       renderAll();
     });
   });
@@ -726,6 +753,7 @@ function renderJoineeList() {
         clearPlayer();
       }
 
+      updateNavigationVisibility();
       renderAll();
       alert(`Temporary password reset for ${user.name}.`);
     });
