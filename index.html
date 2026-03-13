@@ -196,33 +196,34 @@
             </div>
           </article>
 
-          <article class="panel top-gap">
-            <h2>Employee Analytics</h2>
-            <div class="analytics-controls">
-              <label>
-                Select Employee
-                <select id="analyticsJoineeSelect"></select>
+          <article class="panel top-gap analytics-panel">
+            <h2>Training Analytics</h2>
+            <p class="subtitle analytics-subtitle">Employee Progress Tracking</p>
+            <div id="analyticsSummary" class="analytics-grid analytics-overview"></div>
+            <div class="analytics-search top-gap">
+              <label class="search-field">
+                <span class="sr-only">Search employees</span>
+                <input id="analyticsSearchInput" type="text" placeholder="Search employees by name or email..." />
               </label>
             </div>
-            <div id="analyticsSummary" class="analytics-grid"></div>
-            <div class="table-wrap top-gap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Module</th>
-                    <th>Progress</th>
-                    <th>Completed</th>
-                    <th>Watches</th>
-                    <th>Last Watched</th>
-                  </tr>
-                </thead>
-                <tbody id="analyticsTableBody"></tbody>
-              </table>
-            </div>
+            <div id="analyticsCards" class="analytics-cards top-gap"></div>
           </article>
         </div>
       </section>
     </main>
+
+    <div id="analyticsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="analyticsModalTitle">
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="analyticsModalTitle">Completion History</h2>
+          <button id="analyticsModalClose" class="modal-close" type="button" aria-label="Close analytics details">
+            ×
+          </button>
+        </div>
+        <div id="analyticsModalBody" class="modal-body"></div>
+      </div>
+    </div>
 
     <script src="script.js"></script>
   </body>
