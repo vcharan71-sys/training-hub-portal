@@ -237,7 +237,7 @@ function wirePasswordChange() {
 }
 
 function switchView(viewName) {
-  if (viewName === "admin" && !state.isAdminUnlocked) {
+  if (viewName === "admin" && getActiveTrainee()) {
     viewName = "training";
   }
 
