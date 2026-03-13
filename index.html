@@ -22,6 +22,7 @@
         </nav>
         <div class="topbar-actions">
           <button id="themeToggle" class="ghost-btn" type="button">Theme</button>
+          <button id="traineeLogoutBtn" class="ghost-btn hidden" type="button">Logout Trainee</button>
           <button id="adminLogoutBtn" class="ghost-btn hidden" type="button">Logout Admin</button>
         </div>
       </div>
@@ -31,40 +32,81 @@
       <section id="trainingView" class="view active">
         <h1>Training Videos</h1>
         <p class="subtitle">Data Handling Training</p>
-
-        <div class="controls-grid">
-          <label>
-            Employee
-            <select id="activeJoineeSelect"></select>
-          </label>
-          <label>
-            Search Modules
-            <input id="videoSearchInput" type="text" placeholder="Search videos by title or module..." />
-          </label>
+        <div class="notice-banner">
+          GitHub testing build: employee logins, videos, and progress are stored in this browser for temporary demos only.
         </div>
 
-        <section id="videoCardGrid" class="video-grid" aria-label="Training modules"></section>
-
-        <article class="player-panel">
-          <div class="player-header">
-            <h2 id="playerTitle">Select a module</h2>
-            <p id="videoMeta">Choose a card to start watching.</p>
-          </div>
-          <video id="trainingPlayer" controls preload="metadata"></video>
-          <div class="completion-row">
-            <label class="check-wrap">
-              <input id="completionCheckbox" type="checkbox" disabled />
-              <span>I have completed this module</span>
+        <article id="traineeGate" class="panel admin-gate">
+          <h2>Trainee Login</h2>
+          <p>Login with your employee credentials to access your training modules.</p>
+          <form id="traineeLoginForm" class="stack-form">
+            <label>
+              Employee Email
+              <input id="traineeEmail" type="email" placeholder="you@company.com" required />
             </label>
-            <p id="completionNote">Watch until near the end to enable completion checkbox.</p>
-          </div>
-          <p id="videoStatus" class="status-text">Progress will appear here once playback starts.</p>
+            <label>
+              Password
+              <input id="traineePassword" type="password" placeholder="Enter your password" required />
+            </label>
+            <button class="primary-btn" type="submit">Login to Training Portal</button>
+          </form>
+          <p id="traineeGateMessage" class="error-text"></p>
         </article>
+
+        <div id="traineeContent" class="hidden">
+          <article id="passwordChangePanel" class="panel hidden">
+            <h2>Update Temporary Password</h2>
+            <p>Your admin assigned a temporary password. Change it here before using the training modules.</p>
+            <form id="passwordChangeForm" class="stack-form">
+              <label>
+                New Password
+                <input id="newPassword" type="password" placeholder="Create a new password" required />
+              </label>
+              <label>
+                Confirm Password
+                <input id="confirmPassword" type="password" placeholder="Repeat your new password" required />
+              </label>
+              <button class="primary-btn" type="submit">Save New Password</button>
+            </form>
+            <p id="passwordChangeMessage" class="error-text"></p>
+          </article>
+
+          <div id="trainingWorkspace">
+            <div class="controls-grid">
+              <label>
+                Logged in as
+                <input id="activeTraineeDisplay" type="text" readonly />
+              </label>
+              <label>
+                Search Modules
+                <input id="videoSearchInput" type="text" placeholder="Search videos by title or module..." />
+              </label>
+            </div>
+
+            <section id="videoCardGrid" class="video-grid" aria-label="Training modules"></section>
+
+            <article class="player-panel">
+              <div class="player-header">
+                <h2 id="playerTitle">Select a module</h2>
+                <p id="videoMeta">Choose a card to start watching.</p>
+              </div>
+              <video id="trainingPlayer" controls preload="metadata"></video>
+              <div class="completion-row">
+                <label class="check-wrap">
+                  <input id="completionCheckbox" type="checkbox" disabled />
+                  <span>I have completed this module</span>
+                </label>
+                <p id="completionNote">Watch until near the end to enable completion checkbox.</p>
+              </div>
+              <p id="videoStatus" class="status-text">Progress will appear here once playback starts.</p>
+            </article>
+          </div>
+        </div>
       </section>
 
       <section id="adminView" class="view">
         <h1>Admin Portal</h1>
-        <p class="subtitle">Restricted area: only owner access</p>
+        <p class="subtitle">Restricted area: only owner access. This GitHub version is for temporary testing only.</p>
 
         <article id="adminGate" class="panel admin-gate">
           <h2>Admin Login</h2>
@@ -95,6 +137,10 @@
                 <label>
                   Email
                   <input id="joineeEmail" type="email" placeholder="aarav@company.com" required />
+                </label>
+                <label>
+                  Temporary Password
+                  <input id="joineePassword" type="text" placeholder="Trainee@123" required />
                 </label>
                 <button class="primary-btn" type="submit">Add Joinee</button>
               </form>
@@ -139,12 +185,38 @@
                   <tr>
                     <th>Joinee</th>
                     <th>Email</th>
+                    <th>Status</th>
                     <th>Completed</th>
                     <th>Total Watches</th>
                     <th>Last Completion</th>
                   </tr>
                 </thead>
                 <tbody id="progressTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel top-gap">
+            <h2>Employee Analytics</h2>
+            <div class="analytics-controls">
+              <label>
+                Select Employee
+                <select id="analyticsJoineeSelect"></select>
+              </label>
+            </div>
+            <div id="analyticsSummary" class="analytics-grid"></div>
+            <div class="table-wrap top-gap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>Progress</th>
+                    <th>Completed</th>
+                    <th>Watches</th>
+                    <th>Last Watched</th>
+                  </tr>
+                </thead>
+                <tbody id="analyticsTableBody"></tbody>
               </table>
             </div>
           </article>

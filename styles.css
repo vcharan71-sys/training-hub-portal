@@ -144,11 +144,25 @@ h2 {
   font-weight: 600;
 }
 
+.notice-banner {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--primary), white 68%);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--primary), white 92%);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .controls-grid {
   display: grid;
   grid-template-columns: 280px minmax(260px, 520px);
   gap: 0.85rem;
   margin-bottom: 1.25rem;
+}
+
+#activeTraineeDisplay {
+  background: var(--surface-soft);
 }
 
 label {
@@ -324,6 +338,39 @@ video {
   gap: 1rem;
 }
 
+.analytics-controls {
+  margin-top: 0.8rem;
+  max-width: 320px;
+}
+
+.analytics-grid {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  padding: 0.72rem;
+}
+
+.metric-label {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.metric-value {
+  margin: 0.3rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
 .top-gap {
   margin-top: 1rem;
 }
@@ -341,6 +388,71 @@ video {
   border-radius: 10px;
   background: var(--surface-soft);
   padding: 0.66rem 0.76rem;
+}
+
+.employee-card {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.employee-card-header,
+.employee-card-actions,
+.employee-inline-fields {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.pill-active {
+  background: color-mix(in oklab, var(--success), white 86%);
+  color: var(--success);
+}
+
+.pill-disabled {
+  background: color-mix(in oklab, var(--danger), white 88%);
+  color: var(--danger);
+}
+
+.pill-temp {
+  background: color-mix(in oklab, var(--primary), white 88%);
+  color: var(--primary);
+}
+
+.secondary-btn,
+.danger-btn {
+  border: 1px solid var(--line);
+  min-height: 42px;
+  border-radius: 9px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.6rem 0.86rem;
+}
+
+.secondary-btn {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.danger-btn {
+  background: color-mix(in oklab, var(--danger), white 90%);
+  color: var(--danger);
+}
+
+.employee-inline-fields input {
+  min-width: 220px;
 }
 
 .table-wrap {
@@ -391,6 +503,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .video-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -403,6 +519,10 @@ th {
 
 @media (max-width: 620px) {
   .video-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-grid {
     grid-template-columns: 1fr;
   }
 

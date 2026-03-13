@@ -3,9 +3,10 @@ const STORAGE_KEYS = {
   progress: "training_hub_progress_v2",
   theme: "training_hub_theme",
   adminSession: "training_hub_admin_session",
+  traineeSessionUserId: "training_hub_trainee_session_user",
 };
 
-// Change these two values to your private credentials.
+// Change admin credentials here.
 const ADMIN_CREDENTIALS = {
   username: "vcharan71-sys",
   passcode: "AutoMynd@2026",
@@ -22,6 +23,8 @@ const state = {
   activeView: "training",
   searchQuery: "",
   isAdminUnlocked: localStorage.getItem(STORAGE_KEYS.adminSession) === "1",
+  activeTraineeId: localStorage.getItem(STORAGE_KEYS.traineeSessionUserId) || "",
+  analyticsUserId: "",
 };
 
 const els = {
@@ -30,12 +33,25 @@ const els = {
   trainingView: document.getElementById("trainingView"),
   adminView: document.getElementById("adminView"),
   adminLogoutBtn: document.getElementById("adminLogoutBtn"),
+  traineeLogoutBtn: document.getElementById("traineeLogoutBtn"),
   themeToggle: document.getElementById("themeToggle"),
 
-  activeJoineeSelect: document.getElementById("activeJoineeSelect"),
+  traineeGate: document.getElementById("traineeGate"),
+  traineeLoginForm: document.getElementById("traineeLoginForm"),
+  traineeEmail: document.getElementById("traineeEmail"),
+  traineePassword: document.getElementById("traineePassword"),
+  traineeGateMessage: document.getElementById("traineeGateMessage"),
+  traineeContent: document.getElementById("traineeContent"),
+  activeTraineeDisplay: document.getElementById("activeTraineeDisplay"),
+  passwordChangePanel: document.getElementById("passwordChangePanel"),
+  passwordChangeForm: document.getElementById("passwordChangeForm"),
+  newPassword: document.getElementById("newPassword"),
+  confirmPassword: document.getElementById("confirmPassword"),
+  passwordChangeMessage: document.getElementById("passwordChangeMessage"),
+  trainingWorkspace: document.getElementById("trainingWorkspace"),
+
   videoSearchInput: document.getElementById("videoSearchInput"),
   videoCardGrid: document.getElementById("videoCardGrid"),
-
   trainingPlayer: document.getElementById("trainingPlayer"),
   playerTitle: document.getElementById("playerTitle"),
   videoMeta: document.getElementById("videoMeta"),
@@ -53,6 +69,8 @@ const els = {
   joineeForm: document.getElementById("joineeForm"),
   joineeName: document.getElementById("joineeName"),
   joineeEmail: document.getElementById("joineeEmail"),
+  joineePassword: document.getElementById("joineePassword"),
+
   videoForm: document.getElementById("videoForm"),
   videoTitle: document.getElementById("videoTitle"),
   videoDescription: document.getElementById("videoDescription"),
@@ -61,6 +79,10 @@ const els = {
   joineeList: document.getElementById("joineeList"),
   videoList: document.getElementById("videoList"),
   progressTableBody: document.getElementById("progressTableBody"),
+
+  analyticsJoineeSelect: document.getElementById("analyticsJoineeSelect"),
+  analyticsSummary: document.getElementById("analyticsSummary"),
+  analyticsTableBody: document.getElementById("analyticsTableBody"),
 };
 
 const dbPromise = openDatabase();
@@ -72,13 +94,29 @@ init().catch((error) => {
 
 async function init() {
   applySavedTheme();
+  validateTraineeSession();
+
   wireHeaderAndViews();
+  wireTraineeAuth();
+  wirePasswordChange();
   wireTraining();
   wireAdmin();
   wirePlayerTracking();
 
   state.videos = await getAllVideos();
   renderAll();
+}
+
+function validateTraineeSession() {
+  if (!state.activeTraineeId) {
+    return;
+  }
+
+  const activeUser = state.users.find((user) => user.id === state.activeTraineeId);
+  if (!activeUser || activeUser.status === "disabled") {
+    state.activeTraineeId = "";
+    localStorage.removeItem(STORAGE_KEYS.traineeSessionUserId);
+  }
 }
 
 function wireHeaderAndViews() {
@@ -88,13 +126,8 @@ function wireHeaderAndViews() {
     localStorage.setItem(STORAGE_KEYS.theme, isDark ? "dark" : "light");
   });
 
-  els.trainingTabBtn.addEventListener("click", () => {
-    switchView("training");
-  });
-
-  els.adminTabBtn.addEventListener("click", () => {
-    switchView("admin");
-  });
+  els.trainingTabBtn.addEventListener("click", () => switchView("training"));
+  els.adminTabBtn.addEventListener("click", () => switchView("admin"));
 
   els.adminLogoutBtn.addEventListener("click", () => {
     state.isAdminUnlocked = false;
@@ -103,8 +136,91 @@ function wireHeaderAndViews() {
     switchView("training");
   });
 
+  els.traineeLogoutBtn.addEventListener("click", () => {
+    state.activeTraineeId = "";
+    localStorage.removeItem(STORAGE_KEYS.traineeSessionUserId);
+    els.passwordChangeMessage.textContent = "";
+    clearPlayer();
+    renderTraineeVisibility();
+    renderVideoCards();
+    renderPlayerStatus();
+    switchView("training");
+  });
+
   updateAdminVisibility();
+  renderTraineeVisibility();
   switchView("training");
+}
+
+function wireTraineeAuth() {
+  els.traineeLoginForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const email = els.traineeEmail.value.trim().toLowerCase();
+    const password = els.traineePassword.value;
+
+    const matchedUser = state.users.find((user) => user.email === email && user.password === password);
+    if (!matchedUser) {
+      els.traineeGateMessage.textContent = "Invalid trainee credentials. Please try again.";
+      return;
+    }
+
+    if (matchedUser.status === "disabled") {
+      els.traineeGateMessage.textContent = "This employee account is disabled in the GitHub testing build.";
+      return;
+    }
+
+    state.activeTraineeId = matchedUser.id;
+    localStorage.setItem(STORAGE_KEYS.traineeSessionUserId, matchedUser.id);
+    els.passwordChangeMessage.textContent = "";
+    els.traineeGateMessage.textContent = matchedUser.mustChangePassword
+      ? "Temporary password accepted. Please create a new password to continue."
+      : "";
+    els.traineeLoginForm.reset();
+
+    renderTraineeVisibility();
+    renderVideoCards();
+
+    if (!currentVideoId() && state.videos.length > 0) {
+      selectVideo(state.videos[0].id);
+    } else {
+      refreshPlayerPanel();
+    }
+  });
+}
+
+function wirePasswordChange() {
+  els.passwordChangeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    const activeUser = getActiveTrainee();
+    if (!activeUser) {
+      return;
+    }
+
+    const nextPassword = els.newPassword.value.trim();
+    const confirmPassword = els.confirmPassword.value.trim();
+
+    if (nextPassword.length < 8) {
+      els.passwordChangeMessage.textContent = "Use at least 8 characters for the new password.";
+      return;
+    }
+
+    if (nextPassword !== confirmPassword) {
+      els.passwordChangeMessage.textContent = "The passwords do not match.";
+      return;
+    }
+
+    activeUser.password = nextPassword;
+    activeUser.mustChangePassword = false;
+    saveUsers(state.users);
+
+    els.passwordChangeMessage.textContent = "Password updated. You can now use the training modules below.";
+    els.passwordChangeForm.reset();
+    renderTraineeVisibility();
+    renderVideoCards();
+    refreshPlayerPanel();
+  });
 }
 
 function switchView(viewName) {
@@ -127,20 +243,32 @@ function updateAdminVisibility() {
   els.adminLogoutBtn.classList.toggle("hidden", !state.isAdminUnlocked);
 }
 
-function wireTraining() {
-  els.activeJoineeSelect.addEventListener("change", () => {
-    restorePlaybackPosition();
-    renderVideoCards();
-    renderPlayerStatus();
-  });
+function renderTraineeVisibility() {
+  const activeUser = getActiveTrainee();
+  const isLoggedIn = Boolean(activeUser);
+  const mustChangePassword = Boolean(activeUser?.mustChangePassword);
 
+  els.traineeGate.classList.toggle("hidden", isLoggedIn);
+  els.traineeContent.classList.toggle("hidden", !isLoggedIn);
+  els.traineeLogoutBtn.classList.toggle("hidden", !isLoggedIn);
+  els.passwordChangePanel.classList.toggle("hidden", !mustChangePassword);
+  els.trainingWorkspace.classList.toggle("hidden", mustChangePassword);
+  if (!mustChangePassword) {
+    els.passwordChangeMessage.textContent = "";
+  }
+  els.activeTraineeDisplay.value = activeUser
+    ? `${activeUser.name} (${activeUser.email})${activeUser.status === "disabled" ? " - disabled" : ""}`
+    : "";
+}
+
+function wireTraining() {
   els.videoSearchInput.addEventListener("input", () => {
     state.searchQuery = els.videoSearchInput.value.trim().toLowerCase();
     renderVideoCards();
   });
 
   els.completionCheckbox.addEventListener("change", () => {
-    const userId = els.activeJoineeSelect.value;
+    const userId = state.activeTraineeId;
     const videoId = currentVideoId();
     if (!userId || !videoId) {
       return;
@@ -162,6 +290,7 @@ function wireTraining() {
     renderVideoCards();
     renderPlayerStatus();
     renderProgressTable();
+    renderAnalyticsPanel();
   });
 }
 
@@ -172,10 +301,7 @@ function wireAdmin() {
     const username = els.adminUsername.value.trim();
     const passcode = els.adminPasscode.value;
 
-    const usernameMatch = username === ADMIN_CREDENTIALS.username;
-    const passcodeMatch = passcode === ADMIN_CREDENTIALS.passcode;
-
-    if (!usernameMatch || !passcodeMatch) {
+    if (username !== ADMIN_CREDENTIALS.username || passcode !== ADMIN_CREDENTIALS.passcode) {
       els.adminGateMessage.textContent = "Invalid credentials. Please try again.";
       return;
     }
@@ -184,6 +310,7 @@ function wireAdmin() {
     localStorage.setItem(STORAGE_KEYS.adminSession, "1");
     els.adminGateMessage.textContent = "";
     els.adminLoginForm.reset();
+
     updateAdminVisibility();
     renderAdminData();
   });
@@ -193,7 +320,9 @@ function wireAdmin() {
 
     const name = els.joineeName.value.trim();
     const email = els.joineeEmail.value.trim().toLowerCase();
-    if (!name || !email) {
+    const password = els.joineePassword.value.trim();
+
+    if (!name || !email || !password) {
       return;
     }
 
@@ -206,6 +335,9 @@ function wireAdmin() {
       id: crypto.randomUUID(),
       name,
       email,
+      password,
+      status: "active",
+      mustChangePassword: true,
       joinedAt: new Date().toISOString(),
     });
 
@@ -239,11 +371,16 @@ function wireAdmin() {
     els.videoForm.reset();
     renderAll();
   });
+
+  els.analyticsJoineeSelect.addEventListener("change", () => {
+    state.analyticsUserId = els.analyticsJoineeSelect.value;
+    renderAnalyticsPanel();
+  });
 }
 
 function wirePlayerTracking() {
   els.trainingPlayer.addEventListener("timeupdate", () => {
-    const userId = els.activeJoineeSelect.value;
+    const userId = state.activeTraineeId;
     const videoId = currentVideoId();
     const player = els.trainingPlayer;
 
@@ -260,12 +397,13 @@ function wirePlayerTracking() {
 
     state.progress[key] = entry;
     saveProgress(state.progress);
+
     updateCompletionControls(entry);
     renderPlayerStatus();
   });
 
   els.trainingPlayer.addEventListener("ended", () => {
-    const userId = els.activeJoineeSelect.value;
+    const userId = state.activeTraineeId;
     const videoId = currentVideoId();
     const player = els.trainingPlayer;
 
@@ -288,6 +426,7 @@ function wirePlayerTracking() {
     renderVideoCards();
     renderPlayerStatus();
     renderProgressTable();
+    renderAnalyticsPanel();
   });
 
   els.trainingPlayer.addEventListener("loadedmetadata", () => {
@@ -297,40 +436,28 @@ function wirePlayerTracking() {
 }
 
 function renderAll() {
-  renderJoineeSelect();
+  renderTraineeVisibility();
   renderVideoCards();
   renderAdminData();
 
-  if (!currentVideoId() && state.videos.length > 0) {
+  if (state.activeTraineeId && !currentVideoId() && state.videos.length > 0) {
     selectVideo(state.videos[0].id);
   } else {
     refreshPlayerPanel();
   }
 }
 
-function renderJoineeSelect() {
-  const previous = els.activeJoineeSelect.value;
-
-  if (state.users.length === 0) {
-    els.activeJoineeSelect.innerHTML = '<option value="">No employees added</option>';
+function renderVideoCards() {
+  if (!state.activeTraineeId) {
+    els.videoCardGrid.innerHTML = "";
     return;
   }
 
-  els.activeJoineeSelect.innerHTML = state.users
-    .map((user) => `<option value="${user.id}">${escapeHtml(user.name)} (${escapeHtml(user.email)})</option>`)
-    .join("");
-
-  const exists = state.users.some((u) => u.id === previous);
-  els.activeJoineeSelect.value = exists ? previous : state.users[0].id;
-}
-
-function renderVideoCards() {
   if (state.videos.length === 0) {
     els.videoCardGrid.innerHTML = '<article class="panel">No training videos uploaded yet.</article>';
     return;
   }
 
-  const selectedUserId = els.activeJoineeSelect.value;
   const selectedVideoId = currentVideoId();
 
   const filtered = state.videos.filter((video) => {
@@ -348,7 +475,7 @@ function renderVideoCards() {
 
   els.videoCardGrid.innerHTML = filtered
     .map((video, index) => {
-      const entry = state.progress[progressKey(selectedUserId, video.id)] || createEmptyProgressEntry();
+      const entry = state.progress[progressKey(state.activeTraineeId, video.id)] || createEmptyProgressEntry();
       const completedMark = entry.manualCompleted ? '<span class="done-badge">✓</span>' : "";
       const activeStyle = selectedVideoId === video.id ? ' style="outline: 2px solid #1496da;"' : "";
       return `
@@ -375,6 +502,10 @@ function renderVideoCards() {
 }
 
 function selectVideo(videoId) {
+  if (!state.activeTraineeId) {
+    return;
+  }
+
   const video = state.videos.find((item) => item.id === videoId);
   if (!video) {
     return;
@@ -394,46 +525,63 @@ function selectVideo(videoId) {
 }
 
 function refreshPlayerPanel() {
+  if (!state.activeTraineeId) {
+    clearPlayerMessages();
+    return;
+  }
+
   const videoId = currentVideoId();
   const video = state.videos.find((item) => item.id === videoId);
 
   if (!video) {
-    els.playerTitle.textContent = "Select a module";
-    els.videoMeta.textContent = "Choose a card to start watching.";
-    els.completionCheckbox.checked = false;
-    els.completionCheckbox.disabled = true;
-    els.completionNote.textContent = "Watch until near the end to enable completion checkbox.";
-    els.videoStatus.textContent = "Progress will appear here once playback starts.";
+    clearPlayerMessages();
     return;
   }
 
   els.playerTitle.textContent = video.title;
   els.videoMeta.textContent = video.description || "No description provided.";
 
-  const selectedUserId = els.activeJoineeSelect.value;
-  const entry = state.progress[progressKey(selectedUserId, video.id)] || createEmptyProgressEntry();
+  const entry = state.progress[progressKey(state.activeTraineeId, video.id)] || createEmptyProgressEntry();
   updateCompletionControls(entry);
   renderPlayerStatus();
+}
+
+function clearPlayerMessages() {
+  els.playerTitle.textContent = "Select a module";
+  els.videoMeta.textContent = state.activeTraineeId
+    ? "Choose a card to start watching."
+    : "Login as trainee to access your modules.";
+  els.completionCheckbox.checked = false;
+  els.completionCheckbox.disabled = true;
+  els.completionNote.textContent = "Watch until near the end to enable completion checkbox.";
+  els.videoStatus.textContent = "Progress will appear here once playback starts.";
+}
+
+function clearPlayer() {
+  const oldSrc = els.trainingPlayer.getAttribute("src");
+  if (oldSrc && oldSrc.startsWith("blob:")) {
+    URL.revokeObjectURL(oldSrc);
+  }
+  els.trainingPlayer.removeAttribute("src");
+  els.trainingPlayer.removeAttribute("data-video-id");
+  els.trainingPlayer.load();
 }
 
 function updateCompletionControls(entry) {
   const enabled = isEligibleForManualCompletion(entry);
   els.completionCheckbox.disabled = !enabled;
   els.completionCheckbox.checked = Boolean(entry.manualCompleted);
-
-  if (enabled) {
-    els.completionNote.textContent = "You can now check completion for this module.";
-  } else {
-    els.completionNote.textContent = "Watch at least 90% of the video to enable completion checkbox.";
-  }
+  els.completionNote.textContent = enabled
+    ? "You can now check completion for this module."
+    : "Watch at least 90% of the video to enable completion checkbox.";
 }
 
 function renderPlayerStatus() {
-  const userId = els.activeJoineeSelect.value;
+  const userId = state.activeTraineeId;
   const videoId = currentVideoId();
 
   if (!userId || !videoId) {
-    els.videoStatus.textContent = "Select employee and module to begin.";
+    els.videoStatus.textContent = "Select a module to begin.";
     return;
   }
 
@@ -443,7 +591,7 @@ function renderPlayerStatus() {
 
   if (entry.manualCompleted) {
     const completionDate = entry.completedAt ? new Date(entry.completedAt).toLocaleString() : "just now";
-    els.videoStatus.textContent = `Completed by employee. Progress ${ratio.toFixed(0)}%. Last completion: ${completionDate}.`;
+    els.videoStatus.textContent = `Completed by trainee. Progress ${ratio.toFixed(0)}%. Last completion: ${completionDate}.`;
     return;
   }
 
@@ -451,7 +599,7 @@ function renderPlayerStatus() {
 }
 
 function restorePlaybackPosition() {
-  const userId = els.activeJoineeSelect.value;
+  const userId = state.activeTraineeId;
   const videoId = currentVideoId();
   const player = els.trainingPlayer;
 
@@ -472,6 +620,8 @@ function renderAdminData() {
   renderJoineeList();
   renderVideoLibrary();
   renderProgressTable();
+  renderAnalyticsJoineeSelect();
+  renderAnalyticsPanel();
 }
 
 function renderJoineeList() {
@@ -481,8 +631,90 @@ function renderJoineeList() {
   }
 
   els.joineeList.innerHTML = state.users
-    .map((user) => `<li><strong>${escapeHtml(user.name)}</strong><br /><span>${escapeHtml(user.email)}</span></li>`)
+    .map(
+      (user) =>
+        `
+          <li>
+            <article class="employee-card">
+              <div class="employee-card-header">
+                <div>
+                  <strong>${escapeHtml(user.name)}</strong><br />
+                  <span>${escapeHtml(user.email)}</span>
+                </div>
+                <div class="employee-card-actions">
+                  <span class="pill ${user.status === "active" ? "pill-active" : "pill-disabled"}">${escapeHtml(user.status)}</span>
+                  ${
+                    user.mustChangePassword
+                      ? '<span class="pill pill-temp">Temporary password in use</span>'
+                      : ""
+                  }
+                </div>
+              </div>
+              <div>Testing password: <strong>${escapeHtml(user.password)}</strong></div>
+              <div class="employee-inline-fields">
+                <input data-reset-password="${user.id}" type="text" placeholder="New temporary password" minlength="8" />
+                <button class="secondary-btn" data-reset-user="${user.id}" type="button">Reset Password</button>
+                <button class="${user.status === "active" ? "danger-btn" : "secondary-btn"}" data-toggle-user="${user.id}" type="button">
+                  ${user.status === "active" ? "Disable Access" : "Enable Access"}
+                </button>
+              </div>
+            </article>
+          </li>
+        `
+    )
     .join("");
+
+  els.joineeList.querySelectorAll("[data-toggle-user]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const user = state.users.find((item) => item.id === button.dataset.toggleUser);
+      if (!user) {
+        return;
+      }
+
+      user.status = user.status === "active" ? "disabled" : "active";
+
+      if (user.status === "disabled" && state.activeTraineeId === user.id) {
+        state.activeTraineeId = "";
+        localStorage.removeItem(STORAGE_KEYS.traineeSessionUserId);
+        clearPlayer();
+      }
+
+      saveUsers(state.users);
+      renderAll();
+    });
+  });
+
+  els.joineeList.querySelectorAll("[data-reset-user]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const userId = button.dataset.resetUser;
+      const passwordInput = els.joineeList.querySelector(`[data-reset-password="${userId}"]`);
+      const user = state.users.find((item) => item.id === userId);
+
+      if (!user || !passwordInput) {
+        return;
+      }
+
+      const nextPassword = passwordInput.value.trim();
+      if (nextPassword.length < 8) {
+        alert("Use at least 8 characters for the temporary password.");
+        return;
+      }
+
+      user.password = nextPassword;
+      user.mustChangePassword = true;
+      user.status = "active";
+      saveUsers(state.users);
+
+      if (state.activeTraineeId === user.id) {
+        state.activeTraineeId = "";
+        localStorage.removeItem(STORAGE_KEYS.traineeSessionUserId);
+        clearPlayer();
+      }
+
+      renderAll();
+      alert(`Temporary password reset for ${user.name}.`);
+    });
+  });
 }
 
 function renderVideoLibrary() {
@@ -501,7 +733,7 @@ function renderVideoLibrary() {
 
 function renderProgressTable() {
   if (state.users.length === 0) {
-    els.progressTableBody.innerHTML = "<tr><td colspan='5'>No joinees available.</td></tr>";
+    els.progressTableBody.innerHTML = "<tr><td colspan='6'>No joinees available.</td></tr>";
     return;
   }
 
@@ -532,6 +764,7 @@ function renderProgressTable() {
         <tr>
           <td>${escapeHtml(user.name)}</td>
           <td>${escapeHtml(user.email)}</td>
+          <td>${escapeHtml(user.status)}</td>
           <td>${completedCount}/${totalVideos}</td>
           <td>${totalViews}</td>
           <td>${latestCompletion ? new Date(latestCompletion).toLocaleString() : "-"}</td>
@@ -539,6 +772,107 @@ function renderProgressTable() {
       `;
     })
     .join("");
+}
+
+function renderAnalyticsJoineeSelect() {
+  if (state.users.length === 0) {
+    els.analyticsJoineeSelect.innerHTML = '<option value="">No employees</option>';
+    state.analyticsUserId = "";
+    return;
+  }
+
+  if (!state.analyticsUserId || !state.users.some((user) => user.id === state.analyticsUserId)) {
+    state.analyticsUserId = state.users[0].id;
+  }
+
+  els.analyticsJoineeSelect.innerHTML = state.users
+    .map((user) => `<option value="${user.id}">${escapeHtml(user.name)} (${escapeHtml(user.email)})</option>`)
+    .join("");
+
+  els.analyticsJoineeSelect.value = state.analyticsUserId;
+}
+
+function renderAnalyticsPanel() {
+  if (!state.analyticsUserId || state.users.length === 0) {
+    els.analyticsSummary.innerHTML = "";
+    els.analyticsTableBody.innerHTML = "<tr><td colspan='5'>No analytics available.</td></tr>";
+    return;
+  }
+
+  const user = state.users.find((item) => item.id === state.analyticsUserId);
+  if (!user) {
+    return;
+  }
+
+  const totalModules = state.videos.length;
+  let completed = 0;
+  let totalViews = 0;
+  let totalWatchedSeconds = 0;
+  let latestActivity = null;
+
+  const rows = state.videos.map((video) => {
+    const entry = state.progress[progressKey(user.id, video.id)] || createEmptyProgressEntry();
+
+    if (entry.manualCompleted) {
+      completed += 1;
+    }
+
+    totalViews += entry.viewCount || 0;
+    totalWatchedSeconds += entry.watchedSeconds || 0;
+
+    if (entry.lastWatchedAt && (!latestActivity || entry.lastWatchedAt > latestActivity)) {
+      latestActivity = entry.lastWatchedAt;
+    }
+
+    const progressPct = entry.duration > 0 ? Math.min(100, Math.round((entry.watchedSeconds / entry.duration) * 100)) : 0;
+
+    return `
+      <tr>
+        <td>${escapeHtml(video.title)}</td>
+        <td>${progressPct}%</td>
+        <td>${entry.manualCompleted ? "Yes" : "No"}</td>
+        <td>${entry.viewCount || 0}</td>
+        <td>${entry.lastWatchedAt ? new Date(entry.lastWatchedAt).toLocaleString() : "-"}</td>
+      </tr>
+    `;
+  });
+
+  const completionRate = totalModules > 0 ? Math.round((completed / totalModules) * 100) : 0;
+  const watchedMinutes = Math.round(totalWatchedSeconds / 60);
+
+  els.analyticsSummary.innerHTML = `
+    <article class="metric-card">
+      <p class="metric-label">Employee</p>
+      <p class="metric-value">${escapeHtml(user.name)}</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-label">Completion</p>
+      <p class="metric-value">${completed}/${totalModules} (${completionRate}%)</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-label">Total Watches</p>
+      <p class="metric-value">${totalViews}</p>
+    </article>
+    <article class="metric-card">
+      <p class="metric-label">Watch Time</p>
+      <p class="metric-value">${watchedMinutes} mins</p>
+    </article>
+  `;
+
+  els.analyticsTableBody.innerHTML = rows.length > 0 ? rows.join("") : "<tr><td colspan='5'>No modules uploaded yet.</td></tr>";
+
+  if (latestActivity) {
+    els.analyticsSummary.innerHTML += `
+      <article class="metric-card">
+        <p class="metric-label">Last Activity</p>
+        <p class="metric-value">${new Date(latestActivity).toLocaleString()}</p>
+      </article>
+    `;
+  }
+}
+
+function getActiveTrainee() {
+  return state.users.find((user) => user.id === state.activeTraineeId) || null;
 }
 
 function currentVideoId() {
@@ -578,7 +912,16 @@ function applySavedTheme() {
 function loadUsers() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.users);
-    return raw ? JSON.parse(raw) : [];
+    const users = raw ? JSON.parse(raw) : [];
+    return users.map((user) => ({
+      id: user.id || crypto.randomUUID(),
+      name: user.name || "Unnamed",
+      email: (user.email || "").toLowerCase(),
+      password: user.password || "Trainee@123",
+      status: user.status === "disabled" ? "disabled" : "active",
+      mustChangePassword: Boolean(user.mustChangePassword),
+      joinedAt: user.joinedAt || new Date().toISOString(),
+    }));
   } catch {
     return [];
   }
