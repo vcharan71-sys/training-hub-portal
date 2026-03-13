@@ -84,6 +84,8 @@ const els = {
   analyticsSearchInput: document.getElementById("analyticsSearchInput"),
   analyticsCards: document.getElementById("analyticsCards"),
   analyticsModal: document.getElementById("analyticsModal"),
+  analyticsModalBackdrop: document.getElementById("analyticsModalBackdrop"),
+  analyticsModalCard: document.getElementById("analyticsModalCard"),
   analyticsModalTitle: document.getElementById("analyticsModalTitle"),
   analyticsModalBody: document.getElementById("analyticsModalBody"),
   analyticsModalClose: document.getElementById("analyticsModalClose"),
@@ -99,6 +101,7 @@ init().catch((error) => {
 async function init() {
   applySavedTheme();
   validateTraineeSession();
+  syncAnalyticsModalStyles();
 
   wireHeaderAndViews();
   wireTraineeAuth();
@@ -417,6 +420,43 @@ function wireAdmin() {
     if (event.key === "Escape" && !els.analyticsModal.classList.contains("hidden")) {
       closeAnalyticsModal();
     }
+  });
+}
+
+function syncAnalyticsModalStyles() {
+  Object.assign(els.analyticsModal.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "60",
+    display: "grid",
+    placeItems: "center",
+    padding: "1rem"
+  });
+
+  Object.assign(els.analyticsModalBackdrop.style, {
+    position: "absolute",
+    inset: "0",
+    background: "rgba(15, 22, 34, 0.58)"
+  });
+
+  Object.assign(els.analyticsModalCard.style, {
+    position: "relative",
+    width: "min(860px, calc(100vw - 2rem))",
+    maxHeight: "calc(100vh - 3rem)",
+    overflow: "auto",
+    borderRadius: "22px",
+    background: "#fff",
+    boxShadow: "0 30px 80px rgba(0, 0, 0, 0.28)"
+  });
+
+  Object.assign(els.analyticsModalClose.style, {
+    border: "0",
+    background: "transparent",
+    color: "#6b7280",
+    fontSize: "2.2rem",
+    lineHeight: "1",
+    padding: "0",
+    cursor: "pointer"
   });
 }
 
@@ -964,10 +1004,12 @@ function openAnalyticsModal(userId) {
     : '<div class="analytics-empty">No completion history yet for this employee.</div>';
 
   els.analyticsModal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
 }
 
 function closeAnalyticsModal() {
   els.analyticsModal.classList.add("hidden");
+  document.body.style.overflow = "";
 }
 
 function getActiveTrainee() {
