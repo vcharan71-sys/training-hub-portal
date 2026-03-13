@@ -263,7 +263,7 @@ function updateAdminVisibility() {
 function updateNavigationVisibility() {
   const traineeLoggedIn = Boolean(getActiveTrainee());
 
-  els.adminTabBtn.classList.toggle("hidden", traineeLoggedIn || !state.isAdminUnlocked);
+  els.adminTabBtn.classList.toggle("hidden", traineeLoggedIn);
   els.trainingTabBtn.classList.toggle("hidden", state.isAdminUnlocked && !traineeLoggedIn);
 }
 
