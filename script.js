@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   theme: "training_hub_theme",
   adminSession: "training_hub_admin_session",
   traineeSessionUserId: "training_hub_trainee_session_user",
+  videoFallback: "training_hub_videos_fallback_v1",
 };
 
 // Change admin credentials here.
@@ -26,6 +27,9 @@ const state = {
   activeTraineeId: localStorage.getItem(STORAGE_KEYS.traineeSessionUserId) || "",
   analyticsUserId: "",
   analyticsSearchQuery: "",
+  runtimeIssues: [],
+  videoStorageMode: "indexeddb",
+  transientVideos: [],
 };
 
 const els = {
@@ -33,6 +37,7 @@ const els = {
   adminTabBtn: document.getElementById("adminTabBtn"),
   trainingView: document.getElementById("trainingView"),
   adminView: document.getElementById("adminView"),
+  runtimeStatus: document.getElementById("runtimeStatus"),
   adminLogoutBtn: document.getElementById("adminLogoutBtn"),
   traineeLogoutBtn: document.getElementById("traineeLogoutBtn"),
   themeToggle: document.getElementById("themeToggle"),
@@ -91,11 +96,22 @@ const els = {
   analyticsModalClose: document.getElementById("analyticsModalClose"),
 };
 
-const dbPromise = openDatabase();
+const dbPromise = openDatabase().catch((error) => {
+  reportRuntimeIssue(
+    "warning",
+    `Persistent video storage is unavailable in this browser. Video uploads will work only for this tab until you refresh. (${error.message || "Storage error"})`
+  );
+  state.videoStorageMode = "memory";
+  return null;
+});
 
 init().catch((error) => {
   console.error(error);
-  alert("Could not initialize the learning portal in this browser.");
+  reportRuntimeIssue(
+    "error",
+    `The portal loaded with limited functionality because startup hit an error. ${error.message || "Unknown startup error."}`
+  );
+  renderAll();
 });
 
 async function init() {
@@ -112,6 +128,28 @@ async function init() {
 
   state.videos = await getAllVideos();
   renderAll();
+}
+
+function reportRuntimeIssue(level, message) {
+  if (state.runtimeIssues.some((issue) => issue.message === message)) {
+    updateRuntimeStatus();
+    return;
+  }
+
+  state.runtimeIssues.push({ level, message });
+  updateRuntimeStatus();
+}
+
+function updateRuntimeStatus() {
+  if (!state.runtimeIssues.length) {
+    els.runtimeStatus.className = "status-banner hidden";
+    els.runtimeStatus.textContent = "";
+    return;
+  }
+
+  const hasError = state.runtimeIssues.some((issue) => issue.level === "error");
+  els.runtimeStatus.className = `status-banner ${hasError ? "error" : "warning"}`;
+  els.runtimeStatus.textContent = state.runtimeIssues.map((issue) => issue.message).join(" ");
 }
 
 function validateTraineeSession() {
@@ -809,7 +847,7 @@ function renderVideoLibrary() {
   els.videoList.innerHTML = state.videos
     .map(
       (video, index) =>
-        `<li><strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br /><span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}</span></li>`
+        `<li><strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br /><span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}${state.videoStorageMode === "memory" ? " • session only" : ""}</span></li>`
     )
     .join("");
 }
@@ -1088,6 +1126,11 @@ function saveProgress(progress) {
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB is not supported."));
+      return;
+    }
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
@@ -1098,17 +1141,33 @@ function openDatabase() {
     };
 
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => reject(request.error || new Error("IndexedDB failed to open."));
   });
 }
 
 async function saveVideo(video) {
   const db = await dbPromise;
+
+  if (!db) {
+    state.videoStorageMode = "memory";
+    state.transientVideos = [video, ...state.transientVideos.filter((item) => item.id !== video.id)];
+    reportRuntimeIssue(
+      "warning",
+      "This browser is using session-only video storage. Uploaded videos will disappear after refresh."
+    );
+    return;
+  }
+
   await runTransaction(db, VIDEO_STORE, "readwrite", (store) => store.put(video));
 }
 
 async function getAllVideos() {
   const db = await dbPromise;
+
+  if (!db) {
+    return state.transientVideos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
   const videos = await runTransaction(db, VIDEO_STORE, "readonly", (store) => store.getAll());
   return videos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }

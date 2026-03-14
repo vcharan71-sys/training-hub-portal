@@ -35,6 +35,7 @@
         <div class="notice-banner">
           GitHub testing build: employee logins, videos, and progress are stored in this browser for temporary demos only.
         </div>
+        <div id="runtimeStatus" class="status-banner hidden"></div>
 
         <article id="traineeGate" class="panel admin-gate">
           <h2>Trainee Login</h2>
@@ -213,8 +214,8 @@
     </main>
 
     <div id="analyticsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="analyticsModalTitle">
-      <div class="modal-backdrop" data-close-modal="true"></div>
-      <div class="modal-card">
+      <div id="analyticsModalBackdrop" class="modal-backdrop" data-close-modal="true"></div>
+      <div id="analyticsModalCard" class="modal-card">
         <div class="modal-header">
           <h2 id="analyticsModalTitle">Completion History</h2>
           <button id="analyticsModalClose" class="modal-close" type="button" aria-label="Close analytics details">
