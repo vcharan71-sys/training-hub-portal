@@ -929,6 +929,7 @@ function renderVideoLibrary() {
                 </select>
                 <input data-folder-input="${video.id}" type="text" placeholder="New folder name" class="hidden" />
                 <button class="secondary-btn" data-update-folder="${video.id}" type="button">Update Folder</button>
+                <button class="danger-btn" data-delete-video="${video.id}" type="button">Delete Video</button>
               </div>
             </article>
           </li>
@@ -968,6 +969,38 @@ function renderVideoLibrary() {
       video.folder = nextFolder;
       await persistVideos();
       state.videos = await getAllVideos();
+      renderAll();
+    });
+  });
+
+  els.videoList.querySelectorAll("[data-delete-video]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const videoId = button.dataset.deleteVideo;
+      const video = state.videos.find((item) => item.id === videoId);
+
+      if (!video) {
+        return;
+      }
+
+      const confirmed = window.confirm(`Delete "${video.title}" from this testing portal?`);
+      if (!confirmed) {
+        return;
+      }
+
+      await deleteVideo(videoId);
+      state.videos = await getAllVideos();
+
+      Object.keys(state.progress).forEach((key) => {
+        if (key.endsWith(`::${videoId}`)) {
+          delete state.progress[key];
+        }
+      });
+      saveProgress(state.progress);
+
+      if (currentVideoId() === videoId) {
+        clearPlayer();
+      }
+
       renderAll();
     });
   });
@@ -1328,6 +1361,17 @@ async function saveVideo(video) {
   }
 
   await runTransaction(db, VIDEO_STORE, "readwrite", (store) => store.put(video));
+}
+
+async function deleteVideo(videoId) {
+  const db = await dbPromise;
+
+  if (!db) {
+    state.transientVideos = state.transientVideos.filter((video) => video.id !== videoId);
+    return;
+  }
+
+  await runTransaction(db, VIDEO_STORE, "readwrite", (store) => store.delete(videoId));
 }
 
 async function getAllVideos() {
