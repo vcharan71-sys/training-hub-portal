@@ -455,6 +455,23 @@ video {
   padding: 0.66rem 0.76rem;
 }
 
+.video-library-item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.video-library-actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.video-library-actions select,
+.video-library-actions input {
+  min-width: 180px;
+}
+
 .employee-card {
   display: grid;
   gap: 0.7rem;

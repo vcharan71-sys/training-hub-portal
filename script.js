@@ -902,12 +902,75 @@ function renderVideoLibrary() {
     return;
   }
 
+  const folders = [...new Set(state.videos.map((video) => getVideoFolder(video)))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+
   els.videoList.innerHTML = state.videos
     .map(
       (video, index) =>
-        `<li><strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br /><span>Folder: ${escapeHtml(getVideoFolder(video))}</span><br /><span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}${state.videoStorageMode === "memory" ? " • session only" : ""}</span></li>`
+        `
+          <li>
+            <article class="video-library-item">
+              <div>
+                <strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br />
+                <span>Folder: ${escapeHtml(getVideoFolder(video))}</span><br />
+                <span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}${state.videoStorageMode === "memory" ? " • session only" : ""}</span>
+              </div>
+              <div class="video-library-actions">
+                <select data-folder-select="${video.id}">
+                  <option value="__new__">Create new folder</option>
+                  ${folders
+                    .map(
+                      (folder) =>
+                        `<option value="${escapeHtml(folder)}" ${getVideoFolder(video) === folder ? "selected" : ""}>${escapeHtml(folder)}</option>`
+                    )
+                    .join("")}
+                </select>
+                <input data-folder-input="${video.id}" type="text" placeholder="New folder name" class="hidden" />
+                <button class="secondary-btn" data-update-folder="${video.id}" type="button">Update Folder</button>
+              </div>
+            </article>
+          </li>
+        `
     )
     .join("");
+
+  els.videoList.querySelectorAll("[data-folder-select]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const folderInput = els.videoList.querySelector(`[data-folder-input="${select.dataset.folderSelect}"]`);
+      if (!folderInput) {
+        return;
+      }
+
+      folderInput.classList.toggle("hidden", select.value !== "__new__");
+    });
+  });
+
+  els.videoList.querySelectorAll("[data-update-folder]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const videoId = button.dataset.updateFolder;
+      const select = els.videoList.querySelector(`[data-folder-select="${videoId}"]`);
+      const input = els.videoList.querySelector(`[data-folder-input="${videoId}"]`);
+      const video = state.videos.find((item) => item.id === videoId);
+
+      if (!select || !input || !video) {
+        return;
+      }
+
+      const nextFolder = select.value === "__new__" ? input.value.trim() : select.value.trim();
+
+      if (!nextFolder) {
+        alert("Enter a folder name before updating.");
+        return;
+      }
+
+      video.folder = nextFolder;
+      await persistVideos();
+      state.videos = await getAllVideos();
+      renderAll();
+    });
+  });
 }
 
 function renderProgressTable() {
@@ -1280,6 +1343,17 @@ async function getAllVideos() {
   return videos
     .map((video) => ({ ...video, folder: getVideoFolder(video) }))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+async function persistVideos() {
+  const db = await dbPromise;
+
+  if (!db) {
+    state.transientVideos = [...state.videos];
+    return;
+  }
+
+  await Promise.all(state.videos.map((video) => runTransaction(db, VIDEO_STORE, "readwrite", (store) => store.put(video))));
 }
 
 function runTransaction(db, storeName, mode, operation) {
