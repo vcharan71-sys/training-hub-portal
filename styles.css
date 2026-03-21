@@ -216,9 +216,15 @@ select:focus {
   gap: 1.15rem;
 }
 
+.folder-groups {
+  display: grid;
+  gap: 1.4rem;
+}
+
 .folder-section {
   display: grid;
   gap: 0.9rem;
+  width: 100%;
 }
 
 .folder-heading {
