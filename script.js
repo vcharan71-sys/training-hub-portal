@@ -584,6 +584,14 @@ function renderVideoCards() {
     return;
   }
 
+  els.videoCardGrid.className = "folder-groups";
+  Object.assign(els.videoCardGrid.style, {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "1.4rem",
+    width: "100%"
+  });
+
   if (state.videos.length === 0) {
     els.videoCardGrid.innerHTML = '<article class="panel">No training videos uploaded yet.</article>';
     return;
@@ -640,12 +648,14 @@ function renderVideoCards() {
         .join("");
 
       return `
-        <section class="folder-section">
+        <section class="folder-section" style="display:block;width:100%;grid-column:1 / -1;">
           <div class="folder-heading">
             <h3>${escapeHtml(folder)}</h3>
             <span class="folder-count">${videos.length} video${videos.length === 1 ? "" : "s"}</span>
           </div>
-          <div class="folder-video-grid">${cards}</div>
+          <div class="folder-video-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.15rem;width:100%;">
+            ${cards}
+          </div>
         </section>
       `;
     })
