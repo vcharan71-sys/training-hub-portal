@@ -645,7 +645,7 @@ function renderVideoCards() {
             <h3>${escapeHtml(folder)}</h3>
             <span class="folder-count">${videos.length} video${videos.length === 1 ? "" : "s"}</span>
           </div>
-          <div class="video-grid">${cards}</div>
+          <div class="folder-video-grid">${cards}</div>
         </section>
       `;
     })
