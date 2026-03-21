@@ -23,6 +23,7 @@ const state = {
   videos: [],
   activeView: "training",
   searchQuery: "",
+  folderFilter: "all",
   isAdminUnlocked: localStorage.getItem(STORAGE_KEYS.adminSession) === "1",
   activeTraineeId: localStorage.getItem(STORAGE_KEYS.traineeSessionUserId) || "",
   analyticsUserId: "",
@@ -49,6 +50,7 @@ const els = {
   traineeGateMessage: document.getElementById("traineeGateMessage"),
   traineeContent: document.getElementById("traineeContent"),
   activeTraineeDisplay: document.getElementById("activeTraineeDisplay"),
+  folderFilterSelect: document.getElementById("folderFilterSelect"),
   passwordChangePanel: document.getElementById("passwordChangePanel"),
   passwordChangeForm: document.getElementById("passwordChangeForm"),
   newPassword: document.getElementById("newPassword"),
@@ -79,6 +81,7 @@ const els = {
 
   videoForm: document.getElementById("videoForm"),
   videoTitle: document.getElementById("videoTitle"),
+  videoFolder: document.getElementById("videoFolder"),
   videoDescription: document.getElementById("videoDescription"),
   videoFile: document.getElementById("videoFile"),
 
@@ -327,6 +330,11 @@ function renderTraineeVisibility() {
 }
 
 function wireTraining() {
+  els.folderFilterSelect.addEventListener("change", () => {
+    state.folderFilter = els.folderFilterSelect.value;
+    renderVideoCards();
+  });
+
   els.videoSearchInput.addEventListener("input", () => {
     state.searchQuery = els.videoSearchInput.value.trim().toLowerCase();
     renderVideoCards();
@@ -421,15 +429,17 @@ function wireAdmin() {
     event.preventDefault();
 
     const title = els.videoTitle.value.trim();
+    const folder = els.videoFolder.value.trim();
     const description = els.videoDescription.value.trim();
     const file = els.videoFile.files?.[0];
-    if (!title || !file) {
+    if (!title || !folder || !file) {
       return;
     }
 
     await saveVideo({
       id: crypto.randomUUID(),
       title,
+      folder,
       description,
       fileName: file.name,
       mimeType: file.type,
@@ -557,6 +567,7 @@ function wirePlayerTracking() {
 
 function renderAll() {
   renderTraineeVisibility();
+  renderFolderFilterOptions();
   renderVideoCards();
   renderAdminData();
 
@@ -581,10 +592,14 @@ function renderVideoCards() {
   const selectedVideoId = currentVideoId();
 
   const filtered = state.videos.filter((video) => {
+    if (state.folderFilter !== "all" && getVideoFolder(video) !== state.folderFilter) {
+      return false;
+    }
+
     if (!state.searchQuery) {
       return true;
     }
-    const text = `${video.title} ${video.description || ""}`.toLowerCase();
+    const text = `${video.title} ${video.description || ""} ${getVideoFolder(video)}`.toLowerCase();
     return text.includes(state.searchQuery);
   });
 
@@ -593,23 +608,45 @@ function renderVideoCards() {
     return;
   }
 
-  els.videoCardGrid.innerHTML = filtered
-    .map((video, index) => {
-      const entry = state.progress[progressKey(state.activeTraineeId, video.id)] || createEmptyProgressEntry();
-      const completedMark = entry.manualCompleted ? '<span class="done-badge">✓</span>' : "";
-      const activeStyle = selectedVideoId === video.id ? ' style="outline: 2px solid #1496da;"' : "";
+  const grouped = filtered.reduce((accumulator, video) => {
+    const folder = getVideoFolder(video);
+    accumulator[folder] = accumulator[folder] || [];
+    accumulator[folder].push(video);
+    return accumulator;
+  }, {});
+
+  els.videoCardGrid.innerHTML = Object.entries(grouped)
+    .map(([folder, videos]) => {
+      const cards = videos
+        .map((video, index) => {
+          const entry = state.progress[progressKey(state.activeTraineeId, video.id)] || createEmptyProgressEntry();
+          const completedMark = entry.manualCompleted ? '<span class="done-badge">✓</span>' : "";
+          const activeStyle = selectedVideoId === video.id ? ' style="outline: 2px solid #1496da;"' : "";
+          return `
+            <article class="video-card"${activeStyle}>
+              <div class="card-thumb">
+                ▶
+                ${completedMark}
+              </div>
+              <div class="card-body">
+                <span class="folder-chip">${escapeHtml(folder)}</span>
+                <p class="card-title">${escapeHtml(video.title)}</p>
+                <div class="card-meta">Module ${index + 1} • ${formatFileSize(video.size)} • Watched ${entry.viewCount || 0}x</div>
+                <button class="watch-btn" data-video-id="${video.id}" type="button">Watch Now</button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+
       return `
-        <article class="video-card"${activeStyle}>
-          <div class="card-thumb">
-            ▶
-            ${completedMark}
+        <section class="folder-section">
+          <div class="folder-heading">
+            <h3>${escapeHtml(folder)}</h3>
+            <span class="folder-count">${videos.length} video${videos.length === 1 ? "" : "s"}</span>
           </div>
-          <div class="card-body">
-            <p class="card-title">${escapeHtml(video.title)}</p>
-            <div class="card-meta">Module ${index + 1} • ${formatFileSize(video.size)} • Watched ${entry.viewCount || 0}x</div>
-            <button class="watch-btn" data-video-id="${video.id}" type="button">Watch Now</button>
-          </div>
-        </article>
+          <div class="video-grid">${cards}</div>
+        </section>
       `;
     })
     .join("");
@@ -847,7 +884,7 @@ function renderVideoLibrary() {
   els.videoList.innerHTML = state.videos
     .map(
       (video, index) =>
-        `<li><strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br /><span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}${state.videoStorageMode === "memory" ? " • session only" : ""}</span></li>`
+        `<li><strong>Module ${index + 1}: ${escapeHtml(video.title)}</strong><br /><span>Folder: ${escapeHtml(getVideoFolder(video))}</span><br /><span>${escapeHtml(video.fileName)} • ${formatFileSize(video.size)}${state.videoStorageMode === "memory" ? " • session only" : ""}</span></li>`
     )
     .join("");
 }
@@ -1014,11 +1051,32 @@ function renderCompletionItem(item) {
       <span class="completion-dot">✓</span>
       <div>
         <strong>${escapeHtml(title)}</strong>
+        <div class="completion-meta">${escapeHtml(getVideoFolder(item.video))}</div>
         <div class="completion-meta">${escapeHtml(item.video.title || "")}</div>
         <div class="completion-meta">${item.entry.completedAt ? `Completed: ${new Date(item.entry.completedAt).toLocaleString()}` : ""}</div>
       </div>
     </div>
   `;
+}
+
+function renderFolderFilterOptions() {
+  const folders = [...new Set(state.videos.map((video) => getVideoFolder(video)))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+
+  if (state.folderFilter !== "all" && !folders.includes(state.folderFilter)) {
+    state.folderFilter = "all";
+  }
+
+  els.folderFilterSelect.innerHTML = ['<option value="all">All folders</option>']
+    .concat(folders.map((folder) => `<option value="${escapeHtml(folder)}">${escapeHtml(folder)}</option>`))
+    .join("");
+
+  els.folderFilterSelect.value = state.folderFilter;
+}
+
+function getVideoFolder(video) {
+  return (video.folder || "General").trim() || "General";
 }
 
 function openAnalyticsModal(userId) {
@@ -1165,11 +1223,15 @@ async function getAllVideos() {
   const db = await dbPromise;
 
   if (!db) {
-    return state.transientVideos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return state.transientVideos
+      .map((video) => ({ ...video, folder: getVideoFolder(video) }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
   const videos = await runTransaction(db, VIDEO_STORE, "readonly", (store) => store.getAll());
-  return videos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return videos
+    .map((video) => ({ ...video, folder: getVideoFolder(video) }))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 function runTransaction(db, storeName, mode, operation) {

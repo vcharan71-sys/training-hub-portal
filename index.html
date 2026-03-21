@@ -79,6 +79,12 @@
                 <input id="activeTraineeDisplay" type="text" readonly />
               </label>
               <label>
+                Video Folder
+                <select id="folderFilterSelect">
+                  <option value="all">All folders</option>
+                </select>
+              </label>
+              <label>
                 Search Modules
                 <input id="videoSearchInput" type="text" placeholder="Search videos by title or module..." />
               </label>
@@ -153,6 +159,10 @@
                 <label>
                   Video Title
                   <input id="videoTitle" type="text" placeholder="Security Basics" required />
+                </label>
+                <label>
+                  Folder Name
+                  <input id="videoFolder" type="text" placeholder="Onboarding" required />
                 </label>
                 <label>
                   Description
