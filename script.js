@@ -81,7 +81,9 @@ const els = {
 
   videoForm: document.getElementById("videoForm"),
   videoTitle: document.getElementById("videoTitle"),
-  videoFolder: document.getElementById("videoFolder"),
+  videoFolderSelect: document.getElementById("videoFolderSelect"),
+  videoFolderNewWrap: document.getElementById("videoFolderNewWrap"),
+  videoFolderNew: document.getElementById("videoFolderNew"),
   videoDescription: document.getElementById("videoDescription"),
   videoFile: document.getElementById("videoFile"),
 
@@ -425,11 +427,16 @@ function wireAdmin() {
     renderAll();
   });
 
+  els.videoFolderSelect.addEventListener("change", updateVideoFolderInputVisibility);
+
   els.videoForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const title = els.videoTitle.value.trim();
-    const folder = els.videoFolder.value.trim();
+    const folder =
+      els.videoFolderSelect.value === "__new__"
+        ? els.videoFolderNew.value.trim()
+        : els.videoFolderSelect.value.trim();
     const description = els.videoDescription.value.trim();
     const file = els.videoFile.files?.[0];
     if (!title || !folder || !file) {
@@ -450,6 +457,8 @@ function wireAdmin() {
 
     state.videos = await getAllVideos();
     els.videoForm.reset();
+    updateVideoFolderOptions();
+    updateVideoFolderInputVisibility();
     renderAll();
   });
 
@@ -568,6 +577,8 @@ function wirePlayerTracking() {
 function renderAll() {
   renderTraineeVisibility();
   renderFolderFilterOptions();
+  updateVideoFolderOptions();
+  updateVideoFolderInputVisibility();
   renderVideoCards();
   renderAdminData();
 
@@ -1083,6 +1094,33 @@ function renderFolderFilterOptions() {
     .join("");
 
   els.folderFilterSelect.value = state.folderFilter;
+}
+
+function updateVideoFolderOptions() {
+  const folders = [...new Set(state.videos.map((video) => getVideoFolder(video)))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+
+  const currentValue = els.videoFolderSelect.value || "__new__";
+
+  els.videoFolderSelect.innerHTML = ['<option value="__new__">Create new folder</option>']
+    .concat(folders.map((folder) => `<option value="${escapeHtml(folder)}">${escapeHtml(folder)}</option>`))
+    .join("");
+
+  if (currentValue !== "__new__" && folders.includes(currentValue)) {
+    els.videoFolderSelect.value = currentValue;
+  } else {
+    els.videoFolderSelect.value = "__new__";
+  }
+}
+
+function updateVideoFolderInputVisibility() {
+  const isCreatingNew = els.videoFolderSelect.value === "__new__";
+  els.videoFolderNewWrap.classList.toggle("hidden", !isCreatingNew);
+  els.videoFolderNew.required = isCreatingNew;
+  if (!isCreatingNew) {
+    els.videoFolderNew.value = "";
+  }
 }
 
 function getVideoFolder(video) {

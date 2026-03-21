@@ -161,8 +161,14 @@
                   <input id="videoTitle" type="text" placeholder="Security Basics" required />
                 </label>
                 <label>
-                  Folder Name
-                  <input id="videoFolder" type="text" placeholder="Onboarding" required />
+                  Video Folder
+                  <select id="videoFolderSelect">
+                    <option value="__new__">Create new folder</option>
+                  </select>
+                </label>
+                <label id="videoFolderNewWrap">
+                  New Folder Name
+                  <input id="videoFolderNew" type="text" placeholder="Onboarding" />
                 </label>
                 <label>
                   Description
